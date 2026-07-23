@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Pelada+",
+    "slug": "pelada-plus",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a1f1a",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0a1f1a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "br.com.peladaplus.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a1f1a"
+      },
+      "versionCode": 1
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.peladaplus.app"
+    }
+  }
+}
