@@ -95,6 +95,20 @@ Ele detecta o `vercel.json` sozinho e devolve o link do site.
 4. `eas submit -p android`
 5. Preenche a ficha da loja (descrição, capturas de tela, política de privacidade).
 
+## Sorteio e partida agora ficam salvos
+O time sorteado e a partida em andamento não somem mais se você fechar a aba ou recarregar
+a página — ficam guardados no aparelho (não no Supabase, então não aparecem no outro
+aparelho — ex: se sortear no site, o celular não vê esse sorteio específico, só os jogadores
+e o histórico, que aí sim são compartilhados). Pra começar um sorteio do zero, é só apertar
+"Sortear de novo" na aba Sorteio.
+
+## Editar gols/assistências manualmente
+Na ficha de cada jogador (aba Jogadores → toca no jogador) agora dá pra digitar o número
+total de gols e assistências direto, sem precisar que tenha vindo de uma partida registrada
+no app — útil pra corrigir ou já cadastrar o retrospecto de alguém que você quer adicionar
+com histórico. O Ranking também ganhou uma seção "Times que mais venceram", somando quantos
+gols cada cor de colete fez nas partidas que venceu.
+
 ## Como funciona o placar com gol + assistência
 Na tela **Partida**, o **+** do time abre uma janela: primeiro escolhe **quem fez o gol**
 (obrigatório), depois **quem deu a assistência** (opcional). O **–** desfaz o último gol

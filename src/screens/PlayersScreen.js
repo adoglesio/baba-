@@ -23,6 +23,8 @@ export default function PlayersScreen() {
   const [nome, setNome] = useState('');
   const [posicao, setPosicao] = useState('Meia');
   const [nota, setNota] = useState(3);
+  const [gols, setGols] = useState('0');
+  const [assistencias, setAssistencias] = useState('0');
 
   const filtered = players
     .filter((p) => p.nome.toLowerCase().includes(search.toLowerCase()))
@@ -35,6 +37,8 @@ export default function PlayersScreen() {
     setNome('');
     setPosicao('Meia');
     setNota(3);
+    setGols('0');
+    setAssistencias('0');
     setModalVisible(true);
   }
 
@@ -43,6 +47,8 @@ export default function PlayersScreen() {
     setNome(p.nome);
     setPosicao(p.posicao);
     setNota(p.nota);
+    setGols(String(p.gols || 0));
+    setAssistencias(String(p.assistencias || 0));
     setModalVisible(true);
   }
 
@@ -51,11 +57,13 @@ export default function PlayersScreen() {
       Alert.alert('Ops', 'Digita um nome pro jogador');
       return;
     }
+    const golsNum = Math.max(0, parseInt(gols) || 0);
+    const assistNum = Math.max(0, parseInt(assistencias) || 0);
     try {
       if (editing) {
-        await updatePlayer(editing.id, { nome: nome.trim(), posicao, nota });
+        await updatePlayer(editing.id, { nome: nome.trim(), posicao, nota, gols: golsNum, assistencias: assistNum });
       } else {
-        await addPlayer({ nome: nome.trim(), posicao, nota });
+        await addPlayer({ nome: nome.trim(), posicao, nota, gols: golsNum, assistencias: assistNum });
       }
       setModalVisible(false);
     } catch (e) {
@@ -156,6 +164,20 @@ export default function PlayersScreen() {
               ))}
             </View>
 
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Gols (total)</Text>
+                <TextInput style={styles.input} keyboardType="numeric" value={gols} onChangeText={setGols} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Assistências (total)</Text>
+                <TextInput style={styles.input} keyboardType="numeric" value={assistencias} onChangeText={setAssistencias} />
+              </View>
+            </View>
+            <Text style={[styles.helperTextSmall]}>
+              Ajusta aqui se quiser corrigir o número manualmente — durante as partidas, o app já soma sozinho.
+            </Text>
+
             <View style={styles.actions}>
               {editing && (
                 <TouchableOpacity style={styles.btnDanger} onPress={excluir}>
@@ -210,6 +232,7 @@ const styles = StyleSheet.create({
   starsRow: { flexDirection: 'row', gap: 8 },
   star: { fontSize: 30, color: colors.border },
   starOn: { color: colors.gold },
+  helperTextSmall: { color: colors.textFaint, fontSize: 11, marginTop: 8, lineHeight: 15 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 20 },
   btnPrimary: { flex: 1, backgroundColor: colors.gold, borderRadius: 14, padding: 14, alignItems: 'center' },
   btnPrimaryText: { color: '#26170a', fontWeight: '800', fontSize: 15 },

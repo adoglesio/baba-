@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { gerarTimes, uid } from '../utils/teamBalancer';
 
 const AppContext = createContext(null);
+const DRAW_KEY = 'peladaPlus:draw';
+const MATCH_KEY = 'peladaPlus:match';
 
 export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
@@ -12,6 +15,37 @@ export function AppProvider({ children }) {
 
   const [draw, setDraw] = useState(null);
   const [match, setMatch] = useState(null);
+  const hidratado = useRef(false);
+
+  // restaura o sorteio/partida em andamento (sobrevive a fechar/recarregar a página)
+  useEffect(() => {
+    (async () => {
+      try {
+        const [savedDraw, savedMatch] = await Promise.all([
+          AsyncStorage.getItem(DRAW_KEY),
+          AsyncStorage.getItem(MATCH_KEY),
+        ]);
+        if (savedDraw) setDraw(JSON.parse(savedDraw));
+        if (savedMatch) setMatch(JSON.parse(savedMatch));
+      } catch (e) {
+        console.warn('Erro ao restaurar sorteio/partida salvos:', e.message);
+      } finally {
+        hidratado.current = true;
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!hidratado.current) return;
+    if (draw) AsyncStorage.setItem(DRAW_KEY, JSON.stringify(draw));
+    else AsyncStorage.removeItem(DRAW_KEY);
+  }, [draw]);
+
+  useEffect(() => {
+    if (!hidratado.current) return;
+    if (match) AsyncStorage.setItem(MATCH_KEY, JSON.stringify(match));
+    else AsyncStorage.removeItem(MATCH_KEY);
+  }, [match]);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
@@ -28,16 +62,17 @@ export function AppProvider({ children }) {
     setGroups(groupsData || []);
     setHistory(historyData || []);
     setLoading(false);
+
   }, []);
 
   useEffect(() => {
     refreshAll();
   }, [refreshAll]);
 
-  async function addPlayer({ nome, posicao, nota }) {
+  async function addPlayer({ nome, posicao, nota, gols, assistencias }) {
     const { data, error } = await supabase
       .from('players')
-      .insert({ nome, posicao, nota })
+      .insert({ nome, posicao, nota, gols: gols || 0, assistencias: assistencias || 0 })
       .select()
       .single();
     if (error) throw error;

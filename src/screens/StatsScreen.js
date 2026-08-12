@@ -20,8 +20,33 @@ export default function StatsScreen() {
   const porGols = [...players].sort((a, b) => (b.gols || 0) - (a.gols || 0));
   const porAssist = [...players].sort((a, b) => (b.assistencias || 0) - (a.assistencias || 0));
 
+  // agrega o histórico por cor de time: quantas vezes venceu e quantos gols fez vencendo
+  const porTime = {};
+  history.forEach((h) => {
+    if (h.vencedor === 'Empate') return;
+    const golsDoVencedor = h.vencedor === h.time_a ? h.placar_a : h.placar_b;
+    if (!porTime[h.vencedor]) porTime[h.vencedor] = { nome: h.vencedor, vitorias: 0, gols: 0 };
+    porTime[h.vencedor].vitorias += 1;
+    porTime[h.vencedor].gols += golsDoVencedor;
+  });
+  const rankingTimes = Object.values(porTime).sort((a, b) => b.vitorias - a.vitorias || b.gols - a.gols);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
+      {rankingTimes.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Times que mais venceram</Text>
+          {rankingTimes.map((t, i) => (
+            <View key={t.nome} style={styles.rankRow}>
+              <Text style={[styles.rankNum, i === 0 && { color: colors.gold }]}>{i + 1}</Text>
+              <Text style={styles.rankName} numberOfLines={1}>
+                {t.nome} <Text style={{ color: colors.textFaint, fontWeight: '400', fontSize: 12 }}>· {t.gols} gols feitos vencendo</Text>
+              </Text>
+              <Text style={styles.rankVal}>{t.vitorias}</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Mais vitórias</Text>
         {porVitorias.slice(0, 10).map((p, i) => (
