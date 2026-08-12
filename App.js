@@ -13,8 +13,8 @@ const navTheme = {
 };
 
 function Root() {
-  const { loading, ready } = useApp();
-  if (loading || !ready) {
+  const { loading } = useApp();
+  if (loading) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.gold} />

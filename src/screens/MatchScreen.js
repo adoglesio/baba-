@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView, Modal } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { colors } from '../theme';
+import { colors, initials, colorFromName } from '../theme';
 
 function fmtTime(sec) {
   const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -10,10 +10,17 @@ function fmtTime(sec) {
 }
 
 export default function MatchScreen() {
-  const { draw, match, iniciarPartida, marcarGol, toggleTimer, tick, encerrarRodada, teamName } = useApp();
+  const { draw, match, players, iniciarPartida, marcarGol, desfazerGol, toggleTimer, tick, encerrarRodada, teamName } = useApp();
   const [duration, setDuration] = useState('10');
   const [goalTarget, setGoalTarget] = useState('2');
   const intervalRef = useRef(null);
+
+  const [golModal, setGolModal] = useState(null);
+  const [scorerId, setScorerId] = useState(null);
+  const [assistId, setAssistId] = useState(null);
+  const [passo, setPasso] = useState('artilheiro');
+
+  const byId = Object.fromEntries(players.map((p) => [p.id, p]));
 
   useEffect(() => {
     if (match && match.running) {
@@ -72,6 +79,25 @@ export default function MatchScreen() {
   const teamA = match.onFieldA;
   const teamB = match.onFieldB;
 
+  function abrirGolModal(time) {
+    setGolModal(time);
+    setScorerId(null);
+    setAssistId(null);
+    setPasso('artilheiro');
+  }
+
+  function confirmarArtilheiro(id) {
+    setScorerId(id);
+    setPasso('assistencia');
+  }
+
+  function confirmarGol(comAssistencia) {
+    marcarGol(golModal, scorerId, comAssistencia ? assistId : null);
+    setGolModal(null);
+  }
+
+  const rosterDoModal = golModal ? (golModal === 'A' ? teamA : teamB).players.map((id) => byId[id]).filter(Boolean) : [];
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
       <View style={styles.card}>
@@ -80,10 +106,10 @@ export default function MatchScreen() {
             <Text style={[styles.scoreTeam, { color: teamA.cor }]}>{teamName(teamA)}</Text>
             <Text style={styles.scoreNum}>{match.scoreA}</Text>
             <View style={styles.scoreBtns}>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => marcarGol('A', 1)}>
+              <TouchableOpacity style={styles.roundBtn} onPress={() => abrirGolModal('A')}>
                 <Text style={styles.roundBtnText}>+</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => marcarGol('A', -1)}>
+              <TouchableOpacity style={styles.roundBtn} onPress={() => desfazerGol('A')}>
                 <Text style={styles.roundBtnText}>–</Text>
               </TouchableOpacity>
             </View>
@@ -93,10 +119,10 @@ export default function MatchScreen() {
             <Text style={[styles.scoreTeam, { color: teamB.cor }]}>{teamName(teamB)}</Text>
             <Text style={styles.scoreNum}>{match.scoreB}</Text>
             <View style={styles.scoreBtns}>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => marcarGol('B', 1)}>
+              <TouchableOpacity style={styles.roundBtn} onPress={() => abrirGolModal('B')}>
                 <Text style={styles.roundBtnText}>+</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.roundBtn} onPress={() => marcarGol('B', -1)}>
+              <TouchableOpacity style={styles.roundBtn} onPress={() => desfazerGol('B')}>
                 <Text style={styles.roundBtnText}>–</Text>
               </TouchableOpacity>
             </View>
@@ -117,6 +143,26 @@ export default function MatchScreen() {
         </View>
       </View>
 
+      {match.golLog.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Gols da rodada</Text>
+          {match.golLog.map((g, i) => {
+            const scorer = byId[g.scorerId];
+            const assist = g.assistId ? byId[g.assistId] : null;
+            const t = g.time === 'A' ? teamA : teamB;
+            return (
+              <View key={i} style={styles.golRow}>
+                <View style={[styles.bibDot, { backgroundColor: t.cor }]} />
+                <Text style={{ color: colors.text, flex: 1 }}>
+                  ⚽ {scorer ? scorer.nome : '?'}
+                  {assist ? <Text style={{ color: colors.textFaint }}> · assist. {assist.nome}</Text> : null}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Fila de espera (vencedor fica)</Text>
         {match.queue.length === 0 ? (
@@ -135,6 +181,65 @@ export default function MatchScreen() {
           </View>
         )}
       </View>
+
+      <Modal visible={!!golModal} transparent animationType="slide" onRequestClose={() => setGolModal(null)}>
+        <View style={styles.overlay}>
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
+            {passo === 'artilheiro' ? (
+              <>
+                <Text style={styles.sheetTitle}>Quem fez o gol?</Text>
+                <ScrollView style={{ maxHeight: 340 }}>
+                  {rosterDoModal.map((p) => (
+                    <TouchableOpacity key={p.id} style={styles.playerOption} onPress={() => confirmarArtilheiro(p.id)}>
+                      <View style={[styles.avatar, { backgroundColor: colorFromName(p.nome) }]}>
+                        <Text style={styles.avatarText}>{initials(p.nome)}</Text>
+                      </View>
+                      <Text style={styles.playerOptionText}>{p.nome}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity style={{ marginTop: 14, alignItems: 'center' }} onPress={() => setGolModal(null)}>
+                  <Text style={{ color: colors.textFaint }}>Cancelar</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.sheetTitle}>Quem deu a assistência?</Text>
+                <Text style={styles.helperText}>Gol de {byId[scorerId]?.nome}. Opcional — pode pular se não teve assistência.</Text>
+                <ScrollView style={{ maxHeight: 300 }}>
+                  {rosterDoModal
+                    .filter((p) => p.id !== scorerId)
+                    .map((p) => (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.playerOption, assistId === p.id && styles.playerOptionActive]}
+                        onPress={() => setAssistId(p.id)}
+                      >
+                        <View style={[styles.avatar, { backgroundColor: colorFromName(p.nome) }]}>
+                          <Text style={styles.avatarText}>{initials(p.nome)}</Text>
+                        </View>
+                        <Text style={styles.playerOptionText}>{p.nome}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity style={[styles.flexBtn, styles.outlineBtn]} onPress={() => confirmarGol(false)}>
+                    <Text style={styles.outlineBtnText}>Sem assistência</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.flexBtn, styles.primaryBtnFlex, !assistId && { opacity: 0.4 }]}
+                    disabled={!assistId}
+                    onPress={() => confirmarGol(true)}
+                  >
+                    <Text style={styles.primaryBtnText}>Confirmar gol</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -163,7 +268,17 @@ const styles = StyleSheet.create({
   timer: { textAlign: 'center', fontSize: 36, fontWeight: '900', color: colors.text, marginVertical: 14 },
   queueChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginRight: 8, marginBottom: 8 },
   bibDot: { width: 12, height: 12, borderRadius: 4 },
+  golRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderColor: colors.border },
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 30 },
   emptyTitle: { color: colors.text, fontWeight: '700', marginBottom: 4 },
   emptyText: { color: colors.textFaint, textAlign: 'center' },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(4,12,10,0.75)' },
+  sheet: { backgroundColor: colors.bg2, borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderColor: colors.border, padding: 20, paddingBottom: 36 },
+  handle: { width: 38, height: 4, backgroundColor: colors.border, borderRadius: 3, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle: { color: colors.text, fontSize: 18, fontWeight: '900', marginBottom: 12 },
+  playerOption: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, marginBottom: 6, backgroundColor: colors.surface },
+  playerOptionActive: { borderWidth: 1.5, borderColor: colors.gold },
+  playerOptionText: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#0a1f1a', fontWeight: '800', fontSize: 12 },
 });

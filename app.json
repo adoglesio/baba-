@@ -12,9 +12,7 @@
       "resizeMode": "cover",
       "backgroundColor": "#0a1f1a"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "br.com.peladaplus.app",
       "adaptiveIcon": {
@@ -26,14 +24,6 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "br.com.peladaplus.app"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "c194e6c4-9b5d-454f-9a4c-cf23ff6a7329"
-      }
-    },
-    "plugins": [
-      "expo-asset"
-    ]
+    }
   }
 }

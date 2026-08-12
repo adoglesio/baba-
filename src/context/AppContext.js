@@ -1,17 +1,15 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase, ensureSession } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { gerarTimes, uid } from '../utils/teamBalancer';
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [players, setPlayers] = useState([]);
   const [groups, setGroups] = useState([]);
   const [history, setHistory] = useState([]);
 
-  // sorteio/partida em andamento não precisam ir pro banco — vivem só na memória do app
   const [draw, setDraw] = useState(null);
   const [match, setMatch] = useState(null);
 
@@ -33,24 +31,13 @@ export function AppProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        await ensureSession();
-        setReady(true);
-        await refreshAll();
-      } catch (e) {
-        console.warn('Erro ao iniciar sessão Supabase:', e.message);
-        setLoading(false);
-      }
-    })();
+    refreshAll();
   }, [refreshAll]);
 
-  // ---------- JOGADORES ----------
   async function addPlayer({ nome, posicao, nota }) {
-    const { data: userData } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('players')
-      .insert({ nome, posicao, nota, user_id: userData.user.id })
+      .insert({ nome, posicao, nota })
       .select()
       .single();
     if (error) throw error;
@@ -76,18 +63,17 @@ export function AppProvider({ children }) {
 
   async function marcarTodosPresentes(valor) {
     const ids = players.map((p) => p.id);
+    if (ids.length === 0) return;
     const { error } = await supabase.from('players').update({ presente: valor }).in('id', ids);
     if (error) throw error;
     setPlayers((prev) => prev.map((p) => ({ ...p, presente: valor })));
   }
 
-  // ---------- GRUPOS ----------
   async function saveGroup(nome) {
     const presentesIds = players.filter((p) => p.presente).map((p) => p.id);
-    const { data: userData } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('groups')
-      .insert({ nome, player_ids: presentesIds, user_id: userData.user.id })
+      .insert({ nome, player_ids: presentesIds })
       .select()
       .single();
     if (error) throw error;
@@ -99,8 +85,8 @@ export function AppProvider({ children }) {
     if (!g) return;
     const idsPresentes = new Set(g.player_ids);
     const idsAll = players.map((p) => p.id);
-    await supabase.from('players').update({ presente: false }).in('id', idsAll);
-    await supabase.from('players').update({ presente: true }).in('id', [...idsPresentes]);
+    if (idsAll.length > 0) await supabase.from('players').update({ presente: false }).in('id', idsAll);
+    if (idsPresentes.size > 0) await supabase.from('players').update({ presente: true }).in('id', [...idsPresentes]);
     setPlayers((prev) => prev.map((p) => ({ ...p, presente: idsPresentes.has(p.id) })));
   }
 
@@ -110,7 +96,6 @@ export function AppProvider({ children }) {
     setGroups((prev) => prev.filter((g) => g.id !== id));
   }
 
-  // ---------- SORTEIO ----------
   function sortear(numTimesEscolhido) {
     const presentes = players.filter((p) => p.presente);
     if (presentes.length < 2) return;
@@ -119,7 +104,6 @@ export function AppProvider({ children }) {
     setMatch(null);
   }
 
-  // ---------- PARTIDA ----------
   function iniciarPartida({ duration, goalTarget }) {
     if (!draw) return;
     const teams = draw.teams;
@@ -133,15 +117,30 @@ export function AppProvider({ children }) {
       goalTarget,
       seconds: duration * 60,
       running: false,
+      golLog: [],
     });
   }
 
-  function marcarGol(time, delta) {
+  function marcarGol(time, scorerId, assistId) {
     setMatch((m) => {
       if (!m) return m;
-      const novo = { ...m };
-      if (time === 'A') novo.scoreA = Math.max(0, m.scoreA + delta);
-      else novo.scoreB = Math.max(0, m.scoreB + delta);
+      const novo = { ...m, golLog: [...m.golLog, { time, scorerId, assistId: assistId || null }] };
+      if (time === 'A') novo.scoreA = m.scoreA + 1;
+      else novo.scoreB = m.scoreB + 1;
+      return novo;
+    });
+  }
+
+  function desfazerGol(time) {
+    setMatch((m) => {
+      if (!m) return m;
+      const idx = [...m.golLog].reverse().findIndex((g) => g.time === time);
+      if (idx === -1) return m;
+      const realIdx = m.golLog.length - 1 - idx;
+      const novoLog = [...m.golLog.slice(0, realIdx), ...m.golLog.slice(realIdx + 1)];
+      const novo = { ...m, golLog: novoLog };
+      if (time === 'A') novo.scoreA = Math.max(0, m.scoreA - 1);
+      else novo.scoreB = Math.max(0, m.scoreB - 1);
       return novo;
     });
   }
@@ -174,13 +173,16 @@ export function AppProvider({ children }) {
       perdedor = teamA;
     }
 
-    // atualiza estatísticas dos jogadores (vitórias/jogos) no Supabase
-    const byId = Object.fromEntries(players.map((p) => [p.id, p]));
     const golsPorJogador = {};
-    distribuiGolsSimulados(teamA, m.scoreA, golsPorJogador);
-    distribuiGolsSimulados(teamB, m.scoreB, golsPorJogador);
+    const assistPorJogador = {};
+    m.golLog.forEach((g) => {
+      if (g.scorerId) golsPorJogador[g.scorerId] = (golsPorJogador[g.scorerId] || 0) + 1;
+      if (g.assistId) assistPorJogador[g.assistId] = (assistPorJogador[g.assistId] || 0) + 1;
+    });
 
-    const updates = [...teamA.players, ...teamB.players].map((pid) => {
+    const byId = Object.fromEntries(players.map((p) => [p.id, p]));
+    const idsEnvolvidos = [...teamA.players, ...teamB.players];
+    const updates = idsEnvolvidos.map((pid) => {
       const p = byId[pid];
       const venceu = vencedor && (vencedor.id === teamA.id ? teamA : teamB).players.includes(pid);
       return {
@@ -188,6 +190,7 @@ export function AppProvider({ children }) {
         jogos: (p.jogos || 0) + 1,
         vitorias: (p.vitorias || 0) + (venceu ? 1 : 0),
         gols: (p.gols || 0) + (golsPorJogador[pid] || 0),
+        assistencias: (p.assistencias || 0) + (assistPorJogador[pid] || 0),
       };
     });
     await Promise.all(updates.map((u) => supabase.from('players').update(u).eq('id', u.id)));
@@ -198,12 +201,9 @@ export function AppProvider({ children }) {
       })
     );
 
-    // salva no histórico
-    const { data: userData } = await supabase.auth.getUser();
     const { data: histRow } = await supabase
       .from('matches')
       .insert({
-        user_id: userData.user.id,
         time_a: teamName(teamA),
         time_b: teamName(teamB),
         placar_a: m.scoreA,
@@ -218,17 +218,9 @@ export function AppProvider({ children }) {
       const proximoId = m.queue[0];
       const proximo = draw.teams.find((t) => t.id === proximoId);
       const novaFila = [...m.queue.slice(1), perdedor.id];
-      setMatch({ ...m, onFieldA: vencedor, onFieldB: proximo, scoreA: 0, scoreB: 0, seconds: m.duration * 60, running: false, queue: novaFila });
+      setMatch({ ...m, onFieldA: vencedor, onFieldB: proximo, scoreA: 0, scoreB: 0, seconds: m.duration * 60, running: false, queue: novaFila, golLog: [] });
     } else {
-      setMatch({ ...m, scoreA: 0, scoreB: 0, seconds: m.duration * 60, running: false });
-    }
-  }
-
-  function distribuiGolsSimulados(team, gols, acc) {
-    if (gols <= 0 || team.players.length === 0) return;
-    for (let i = 0; i < gols; i++) {
-      const pid = team.players[i % team.players.length];
-      acc[pid] = (acc[pid] || 0) + 1;
+      setMatch({ ...m, scoreA: 0, scoreB: 0, seconds: m.duration * 60, running: false, golLog: [] });
     }
   }
 
@@ -237,7 +229,6 @@ export function AppProvider({ children }) {
   }
 
   const value = {
-    ready,
     loading,
     players,
     groups,
@@ -256,6 +247,7 @@ export function AppProvider({ children }) {
     sortear,
     iniciarPartida,
     marcarGol,
+    desfazerGol,
     tick,
     toggleTimer,
     encerrarRodada,

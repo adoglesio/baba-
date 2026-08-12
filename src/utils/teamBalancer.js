@@ -4,7 +4,6 @@ export function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-// embaralha mas mantém ordem geral de força (só baralha empates) — evita virar loteria pura
 function shuffleEqualRank(arr) {
   const grupos = {};
   arr.forEach((p) => {
@@ -23,8 +22,6 @@ function shuffleEqualRank(arr) {
   return out;
 }
 
-// Distribui jogadores em N times, equilibrando por nota e evitando
-// que todos os goleiros (ou todos os "craques") caiam no mesmo time.
 export function gerarTimes(players, numTimes) {
   const teams = Array.from({ length: numTimes }, (_, i) => ({
     ...BIBS[i % BIBS.length],

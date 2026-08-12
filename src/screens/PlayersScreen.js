@@ -19,7 +19,7 @@ export default function PlayersScreen() {
   const { players, togglePresente, marcarTodosPresentes, addPlayer, updatePlayer, deletePlayer } = useApp();
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState(null); // player object ou null (novo)
+  const [editing, setEditing] = useState(null);
   const [nome, setNome] = useState('');
   const [posicao, setPosicao] = useState('Meia');
   const [nota, setNota] = useState(3);

@@ -18,6 +18,7 @@ export default function StatsScreen() {
 
   const porVitorias = [...players].sort((a, b) => (b.vitorias || 0) - (a.vitorias || 0) || (b.gols || 0) - (a.gols || 0));
   const porGols = [...players].sort((a, b) => (b.gols || 0) - (a.gols || 0));
+  const porAssist = [...players].sort((a, b) => (b.assistencias || 0) - (a.assistencias || 0));
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
@@ -31,6 +32,12 @@ export default function StatsScreen() {
         <Text style={styles.cardTitle}>Artilharia</Text>
         {porGols.slice(0, 10).map((p, i) => (
           <RankRow key={p.id} i={i} p={p} val={p.gols || 0} />
+        ))}
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Mais assistências</Text>
+        {porAssist.slice(0, 10).map((p, i) => (
+          <RankRow key={p.id} i={i} p={p} val={p.assistencias || 0} />
         ))}
       </View>
       {history.length > 0 && (
